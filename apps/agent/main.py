@@ -31,7 +31,7 @@ class MyAgentState(MessagesState):
     chat_summary: str
     clinical_note: str
     image_summary: str
-    Imaging: list[dict]  # List of {id, filename, data_url, description, timestamp}
+    Imaging: list[dict]  # List of {id: int, base64: str, description: str}
     diagnosis_1: str
     diagnosis_2: str
     final_diagnosis: str

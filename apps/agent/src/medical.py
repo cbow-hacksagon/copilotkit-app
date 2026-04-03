@@ -85,22 +85,20 @@ def calling_emergency_services(emergency: str) -> str:
 
 @tool
 def store_medical_image(
-    filename: str, image_data_url: str, description: str, runtime: ToolRuntime
+    image_id: int, base64: str, description: str, runtime: ToolRuntime
 ) -> Command:
     """
-    Store a medical image in the agent state for later analysis.
-    This tool accepts the filename, base64 encoded image data URL, and a brief description of what the image shows.
-    The image will be saved and can be retrieved later for analysis without immediate LLM processing.
+    Store a medical image in the agent Imaging state for later analysis.
+    Accepts a numeric ID, raw base64 string (no data URL prefix), and a description.
+    The image will be saved and can be retrieved later via check_images tool.
     """
     try:
         existing_images = runtime.state.get("Imaging", [])
 
         image_record = {
-            "id": str(uuid.uuid4()),
-            "filename": filename,
-            "data_url": image_data_url,
+            "id": image_id,
+            "base64": base64,
             "description": description,
-            "timestamp": str(uuid.uuid4())[:8],
         }
 
         updated_images = existing_images + [image_record]
@@ -110,7 +108,7 @@ def store_medical_image(
                 "Imaging": updated_images,
                 "messages": [
                     ToolMessage(
-                        content=f"Successfully stored medical image '{filename}'. Total images stored: {len(updated_images)}",
+                        content=f"Successfully stored medical image (ID: {image_id}). Total images stored: {len(updated_images)}",
                         tool_call_id=runtime.tool_call_id,
                     )
                 ],
@@ -130,21 +128,31 @@ def store_medical_image(
 
 
 @tool
-def get_imaging(runtime: ToolRuntime) -> str:
+def check_images(expression: str, runtime: ToolRuntime) -> str:
     """
-    Retrieve the list of stored medical images from the Imaging state.
-    Returns a summary of all stored images with their filenames, descriptions, and IDs.
-    Use this tool when you need to reference or analyze previously uploaded images.
+    Checks the images currently stored in agent Imaging state. Input any expression, it does not matter.
+    Returns the ID, description, and a truncated base64 preview for each image.
     """
     images = runtime.state.get("Imaging", [])
-    if not images:
-        return "No images have been uploaded yet."
 
-    result = "Stored images:\n"
+    if not images:
+        return "No images currently in agent state."
+
+    result = f"There are {len(images)} image(s) in agent state:\n\n"
+
     for img in images:
-        desc = img.get("description", "No description")
-        result += f"- ID: {img['id']}, File: {img['filename']}, Description: {desc}\n"
-    return result
+        img_id = img.get("id", "?")
+        description = img.get("description", "")
+        base64 = img.get("base64", "")
+        preview = base64[:60] + "..." if len(base64) > 60 else base64
+        result += (
+            f"Image ID: {img_id}\n"
+            f"Description: {description}\n"
+            f"Base64 preview (first 60 chars): {preview}\n"
+            f"Total base64 length: {len(base64)} chars\n\n"
+        )
+
+    return result.strip()
 
 
 medical_tools = [
@@ -152,6 +160,6 @@ medical_tools = [
     generate_clinical_note,
     summarize_chat,
     calling_emergency_services,
+    check_images,
     store_medical_image,
-    get_imaging,
 ]
