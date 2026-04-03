@@ -89,40 +89,41 @@ export function ImageChatPopup() {
 
   return (
     <>
-      {/* Trigger button */}
+      {/* Trigger button - bottom-right corner FAB */}
       <button
         onClick={() => setOpen((p) => !p)}
         aria-label="Upload image"
         style={{
           position: "fixed",
           bottom: "24px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          padding: "10px 20px",
-          borderRadius: "999px",
+          right: "24px",
+          width: "48px",
+          height: "48px",
+          borderRadius: "50%",
           background: "var(--primary)",
           color: "var(--primary-foreground)",
           border: "none",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
-          gap: "8px",
-          fontSize: "13px",
-          fontWeight: 500,
+          justifyContent: "center",
           zIndex: 1000,
           boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
+          transition: "opacity 0.15s ease",
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
           <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2"/>
           <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
           <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        Upload image
         {images.length > 0 && (
           <span style={{
-            background: "var(--primary-foreground)",
-            color: "var(--primary)",
+            position: "absolute",
+            top: "-4px",
+            right: "-4px",
+            background: "var(--destructive)",
+            color: "var(--destructive-foreground)",
             fontSize: "10px",
             fontWeight: 700,
             width: "18px", height: "18px",
@@ -138,9 +139,8 @@ export function ImageChatPopup() {
       {open && (
         <div style={{
           position: "fixed",
-          bottom: "76px",
-          left: "50%",
-          transform: "translateX(-50%)",
+          bottom: "84px",
+          right: "24px",
           width: "min(380px, calc(100vw - 32px))",
           borderRadius: "14px",
           border: "0.5px solid var(--border)",
