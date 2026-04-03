@@ -21,7 +21,9 @@ export default function HomePage() {
           input={{
             disclaimer: () => null,
             className: "pb-6",
+	    
           }}
+	  
         />
       </div>
 
