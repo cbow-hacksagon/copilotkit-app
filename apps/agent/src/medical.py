@@ -79,6 +79,32 @@ def calling_emergency_services(emergency: str) -> str:
 
     return "Successfully called emergency services."
 
+@tool
+def check_images(expression: str, runtime: ToolRuntime) -> str:
+    """
+    Checks the images currently stored in agent state. Input any expression, it does not matter.
+    Returns the ID, description, and a truncated base64 preview for each image.
+    """
+    images = runtime.state.get("images", [])
+    
+    if not images:
+        return "No images currently in agent state."
+    
+    result = f"There are {len(images)} image(s) in agent state:\n\n"
+    
+    for img in images:
+        img_id = img.get("id", "?")
+        description = img.get("description", "")
+        base64 = img.get("base64", "")
+        preview = base64[:60] + "..." if len(base64) > 60 else base64
+        result += (
+            f"Image ID: {img_id}\n"
+            f"Description: {description}\n"
+            f"Base64 preview (first 60 chars): {preview}\n"
+            f"Total base64 length: {len(base64)} chars\n\n"
+        )
+    
+    return result.strip()
 
 
-medical_tools = [check_summaries, generate_clinical_note, summarize_chat, calling_emergency_services]
+medical_tools = [check_summaries, generate_clinical_note, summarize_chat, calling_emergency_services, check_images]

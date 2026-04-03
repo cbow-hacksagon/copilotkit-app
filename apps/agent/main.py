@@ -22,9 +22,14 @@ from langchain.tools import ToolRuntime, tool
 from langchain_core.tools import tool
 from langgraph.types import Command
 from typing import Annotated
-
+from typing import TypedDict, List, Optional
 from src.medical import medical_tools
 
+
+class AgentImage(TypedDict):
+    id: int
+    base64: str
+    description: str
 
 class MyAgentState(MessagesState):
     chat_summary: str
@@ -34,7 +39,7 @@ class MyAgentState(MessagesState):
     diagnosis_2: str
     final_diagnosis: str
     remaining_steps: int
-
+    images: List[AgentImage] 
 
 
 llm = ChatOpenAI(

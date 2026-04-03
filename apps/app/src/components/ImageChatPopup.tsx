@@ -1,112 +1,151 @@
 "use client";
 import { useState, useRef, useCallback } from "react";
+import { useCoAgent } from "@copilotkit/react-core";
 
-interface UploadedImage {
-  id: string;
-  name: string;
-  dataUrl: string;
-  size: number;
+interface AgentImage {
+  id: number;
+  base64: string;
+  description: string;
+}
+
+interface AgentState {
+  images?: AgentImage[];
 }
 
 export function ImageChatPopup() {
   const [open, setOpen] = useState(false);
-  const [images, setImages] = useState<UploadedImage[]>([]);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [base64, setBase64] = useState<string | null>(null);
+  const [description, setDescription] = useState("");
   const [dragging, setDragging] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const processFiles = useCallback((files: FileList | null) => {
-    if (!files) return;
-    Array.from(files).forEach((file) => {
-      if (!file.type.startsWith("image/")) return;
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImages((prev) => [
-          ...prev,
-          {
-            id: crypto.randomUUID(),
-            name: file.name,
-            dataUrl: e.target?.result as string,
-            size: file.size,
-          },
-        ]);
-      };
-      reader.readAsDataURL(file);
-    });
+  const { state, setState } = useCoAgent<AgentState>({
+    name: "default",  // must match your LangGraph agent name
+    initialState: { images: [] },
+  });
+
+  const images = state.images ?? [];
+
+  const processFile = useCallback((file: File) => {
+    if (!file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const result = e.target?.result as string;
+      setPreview(result);
+      // strip the data:image/...;base64, prefix — store raw base64 only
+      setBase64(result.split(",")[1]);
+    };
+    reader.readAsDataURL(file);
   }, []);
 
-  const removeImage = (id: string) =>
-    setImages((prev) => prev.filter((img) => img.id !== id));
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) processFile(file);
+  };
 
-  // expose images for your backend via window or a prop/callback
-  // e.g. pass onImagesChange={(imgs) => sendToBackend(imgs)} as a prop
+  const handleSubmit = () => {
+    if (!base64 || !description.trim()) return;
+    setSubmitting(true);
+
+    const newImage: AgentImage = {
+      id: images.length + 1,
+      base64,
+      description: description.trim(),
+    };
+
+    setState({ images: [...images, newImage] });
+
+    // reset form
+    setPreview(null);
+    setBase64(null);
+    setDescription("");
+    setSubmitting(false);
+    setOpen(false);
+  };
+
+  const clearImage = () => {
+    setPreview(null);
+    setBase64(null);
+    if (inputRef.current) inputRef.current.value = "";
+  };
 
   return (
     <>
-      {/* Trigger */}
+      {/* Trigger button */}
       <button
         onClick={() => setOpen((p) => !p)}
+        aria-label="Upload image"
         style={{
           position: "fixed",
           bottom: "24px",
-          right: "24px",
-          width: "48px",
-          height: "48px",
-          borderRadius: "50%",
+          left: "50%",
+          transform: "translateX(-50%)",
+          padding: "10px 20px",
+          borderRadius: "999px",
           background: "var(--primary)",
           color: "var(--primary-foreground)",
           border: "none",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
-          justifyContent: "center",
+          gap: "8px",
+          fontSize: "13px",
+          fontWeight: 500,
           zIndex: 1000,
+          boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
         }}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
           <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2"/>
           <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
           <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
+        Upload image
         {images.length > 0 && (
           <span style={{
-            position: "absolute",
-            top: "-4px", right: "-4px",
-            background: "#ef4444",
-            color: "#fff",
+            background: "var(--primary-foreground)",
+            color: "var(--primary)",
             fontSize: "10px",
+            fontWeight: 700,
             width: "18px", height: "18px",
             borderRadius: "50%",
             display: "flex", alignItems: "center", justifyContent: "center",
-            fontWeight: 600,
           }}>
             {images.length}
           </span>
         )}
       </button>
 
-      {/* Panel */}
+      {/* Popup */}
       {open && (
         <div style={{
           position: "fixed",
-          bottom: "84px", right: "24px",
-          width: "300px",
-          borderRadius: "12px",
+          bottom: "76px",
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "min(380px, calc(100vw - 32px))",
+          borderRadius: "14px",
           border: "0.5px solid var(--border)",
           background: "var(--card)",
           zIndex: 999,
           overflow: "hidden",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.14)",
         }}>
           {/* Header */}
           <div style={{
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            padding: "10px 14px",
+            padding: "12px 16px",
             borderBottom: "0.5px solid var(--border)",
           }}>
             <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--foreground)" }}>
-              Images {images.length > 0 && `(${images.length})`}
+              Add image to agent
             </span>
             <button
-              onClick={() => setOpen(false)}
+              onClick={() => { setOpen(false); clearImage(); setDescription(""); }}
               style={{ background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: "2px" }}
             >
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -115,99 +154,127 @@ export function ImageChatPopup() {
             </button>
           </div>
 
-          {/* Drop zone */}
-          <div
-            onClick={() => inputRef.current?.click()}
-            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={(e) => { e.preventDefault(); setDragging(false); processFiles(e.dataTransfer.files); }}
-            style={{
-              margin: "12px",
-              padding: "16px",
-              border: `1.5px dashed ${dragging ? "var(--ring)" : "var(--border)"}`,
-              borderRadius: "8px",
-              textAlign: "center",
-              cursor: "pointer",
-              background: dragging ? "var(--accent)" : "transparent",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" style={{ margin: "0 auto 6px", display: "block", color: "var(--muted-foreground)" }}>
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              <polyline points="17 8 12 3 7 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-              <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <p style={{ fontSize: "12px", color: "var(--muted-foreground)", margin: 0 }}>
-              Drop images or <span style={{ color: "var(--foreground)", fontWeight: 500 }}>click to browse</span>
-            </p>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              style={{ display: "none" }}
-              onChange={(e) => processFiles(e.target.files)}
-            />
-          </div>
+          <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
 
-          {/* Thumbnails */}
-          {images.length > 0 && (
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(4, 1fr)",
-              gap: "8px",
-              padding: "0 12px 12px",
-            }}>
-              {images.map((img) => (
-                <div key={img.id} style={{ position: "relative", aspectRatio: "1" }}>
-                  <img
-                    src={img.dataUrl}
-                    alt={img.name}
-                    title={img.name}
-                    style={{
-                      width: "100%", height: "100%",
-                      objectFit: "cover",
-                      borderRadius: "6px",
-                      border: "0.5px solid var(--border)",
-                    }}
-                  />
-                  <button
-                    onClick={() => removeImage(img.id)}
-                    title="Remove"
-                    style={{
-                      position: "absolute", top: "-4px", right: "-4px",
-                      width: "16px", height: "16px",
-                      borderRadius: "50%",
-                      background: "#ef4444",
-                      border: "none", cursor: "pointer",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                  >
-                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
-                      <path d="M1 1l6 6M7 1L1 7" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Clear all */}
-          {images.length > 0 && (
-            <div style={{ padding: "0 12px 12px" }}>
-              <button
-                onClick={() => setImages([])}
+            {/* Drop zone / preview */}
+            {preview ? (
+              <div style={{ position: "relative" }}>
+                <img
+                  src={preview}
+                  alt="preview"
+                  style={{
+                    width: "100%",
+                    maxHeight: "180px",
+                    objectFit: "cover",
+                    borderRadius: "8px",
+                    border: "0.5px solid var(--border)",
+                    display: "block",
+                  }}
+                />
+                <button
+                  onClick={clearImage}
+                  style={{
+                    position: "absolute", top: "6px", right: "6px",
+                    width: "22px", height: "22px",
+                    borderRadius: "50%",
+                    background: "rgba(0,0,0,0.55)",
+                    border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}
+                >
+                  <svg width="9" height="9" viewBox="0 0 9 9" fill="none">
+                    <path d="M1 1l7 7M8 1L1 8" stroke="#fff" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => inputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={handleDrop}
                 style={{
-                  width: "100%", padding: "6px",
-                  fontSize: "12px", color: "var(--muted-foreground)",
-                  background: "var(--muted)", border: "none",
-                  borderRadius: "6px", cursor: "pointer",
+                  padding: "28px 16px",
+                  border: `1.5px dashed ${dragging ? "var(--ring)" : "var(--border)"}`,
+                  borderRadius: "8px",
+                  textAlign: "center",
+                  cursor: "pointer",
+                  background: dragging ? "var(--accent)" : "transparent",
+                  transition: "all 0.15s ease",
                 }}
               >
-                Clear all
-              </button>
-            </div>
-          )}
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                  style={{ margin: "0 auto 8px", display: "block", color: "var(--muted-foreground)" }}>
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  <polyline points="17 8 12 3 7 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <line x1="12" y1="3" x2="12" y2="15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+                <p style={{ fontSize: "12px", color: "var(--muted-foreground)", margin: 0 }}>
+                  Drop image or{" "}
+                  <span style={{ color: "var(--foreground)", fontWeight: 500 }}>click to browse</span>
+                </p>
+                <input
+                  ref={inputRef}
+                  type="file"
+                  accept="image/*"
+                  style={{ display: "none" }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) processFile(file);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Description */}
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe this image (e.g. chest X-ray showing..."
+              rows={3}
+              style={{
+                width: "100%",
+                resize: "none",
+                fontSize: "13px",
+                padding: "8px 10px",
+                borderRadius: "8px",
+                border: "0.5px solid var(--border)",
+                background: "var(--input)",
+                color: "var(--foreground)",
+                fontFamily: "var(--font-body)",
+                outline: "none",
+                boxSizing: "border-box",
+              }}
+            />
+
+            {/* Submitted count */}
+            {images.length > 0 && (
+              <p style={{ fontSize: "11px", color: "var(--muted-foreground)", margin: 0 }}>
+                {images.length} image{images.length > 1 ? "s" : ""} already in agent state
+                (ID{images.length > 1 ? "s" : ""} {images.map((i) => i.id).join(", ")})
+              </p>
+            )}
+
+            {/* Submit */}
+            <button
+              onClick={handleSubmit}
+              disabled={!base64 || !description.trim() || submitting}
+              style={{
+                width: "100%",
+                padding: "9px",
+                borderRadius: "8px",
+                background: !base64 || !description.trim() ? "var(--muted)" : "var(--primary)",
+                color: !base64 || !description.trim() ? "var(--muted-foreground)" : "var(--primary-foreground)",
+                border: "none",
+                cursor: !base64 || !description.trim() ? "not-allowed" : "pointer",
+                fontSize: "13px",
+                fontWeight: 500,
+                transition: "all 0.15s ease",
+              }}
+            >
+              {submitting ? "Adding..." : "Add to agent state"}
+            </button>
+          </div>
         </div>
       )}
     </>
