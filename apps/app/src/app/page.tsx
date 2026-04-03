@@ -8,7 +8,6 @@ import { CopilotChat } from "@copilotkit/react-core/v2";
 
 export default function HomePage() {
   useGenerativeUIExamples();
-  useExampleSuggestions();
 
   return (
     <ExampleLayout
