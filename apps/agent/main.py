@@ -24,8 +24,65 @@ from langgraph.types import Command
 from typing import Annotated
 
 class MyAgentState(MessagesState):
+    chat_summary: str
+    clinical_note: str
+    image_summary: str
+    diagnosis_1: str
+    diagnosis_2: str
+    final_diagnosis: str
     counter: int
     remaining_steps: int
+
+@tool
+def summarize_chat(expression: str, runtime: ToolRuntime) -> Command:
+    """
+    Use this tool to store the summary of the users chat inside the agent state variable, invoke this tool with the chat summary as the expression. Generate a detailed summary with user complaints and your questions and interpretations.
+    """
+
+    
+    summary = runtime.state.get("chat_summary", "")
+    new_summary = expression
+
+    return Command(update={
+        "chat_summary": new_summary,
+        "messages": [
+            ToolMessage(
+                content="Successfully updated todos",
+                tool_call_id=runtime.tool_call_id
+            )
+        ]
+    })
+
+
+@tool
+def generate_clinical_note(expression: str, runtime: ToolRuntime) -> Command:
+    """
+    Generate a clinical note based on the user's chat summary and chat history, the note should be well structured with primary complaints, differential, assessment and concerns or tests if any required. Put the clinical note as the expression. 
+    """
+
+    summary = runtime.state.get("clinical_note", "")
+    new_summary = expression
+
+    return Command(update={
+        "clinical_note": new_summary,
+        "messages": [
+            ToolMessage(
+                content="Successfully updated todos",
+                tool_call_id=runtime.tool_call_id
+            )
+        ]
+    })
+
+
+@tool
+def check_summaries(expression: str, runtime: ToolRuntime) -> str:
+    """
+    Checks the user's current chat summary and clinical note.
+    """
+    # Access the state directly from the injected Annotated type
+    cl = runtime.state.get("clinical_note", "")
+    ch = runtime.state.get("chat_summary", "")
+    return f"The current counter chat summary is {ch} and clinical note is {cl}."
 
 
 
