@@ -17,7 +17,7 @@ from langgraph.types import Command
 from typing import TypedDict, Literal, Annotated
 import uuid
 
-
+from langchain.tools import ToolRuntime, tool
 
 from langchain_core.tools import tool
 from langgraph.types import Command
@@ -27,28 +27,36 @@ class MyAgentState(MessagesState):
     counter: int
     remaining_steps: int
 
+
+
+
 @tool
-def check_counter(expression: str, state: Annotated[MyAgentState, InjectedState]) -> str:
+def check_counter(expression: str, runtime: ToolRuntime) -> str:
     """
     Checks the user's current counter value.
     """
     # Access the state directly from the injected Annotated type
-    val = state.get("counter", 0) 
+    val = runtime.state.get("counter", 0) 
     return f"The current counter value is {val}."
 
 @tool
-def increment(number: int, state: Annotated[MyAgentState, InjectedState]) -> Command:
+def increment(number: int, runtime:ToolRuntime) -> Command:
     """
     Increments the counter by a specific number.
     """
-    current_counter = state.get("counter", 0)
+    current_counter = runtime.state.get("counter", 0)
     new_val = current_counter + number
     
     # We return Command to update the state AND content to inform the LLM
-    return Command(
-        update={"counter": new_val},
-        content=f"Counter updated. Added {number}, new value is {new_val}."
-    )
+    return Command(update={
+        "counter": new_val,
+        "messages": [
+            ToolMessage(
+                content="Successfully updated todos",
+                tool_call_id=runtime.tool_call_id
+            )
+        ]
+    })
 
 llm = ChatOpenAI(
     base_url="http://localhost:8080/v1",
