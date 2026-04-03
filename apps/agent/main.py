@@ -2,12 +2,13 @@
 Main entry point for the agent.
 Defines the workflow graph, state, tools, and nodes.
 """
+
 from langgraph.prebuilt import create_react_agent
 from langchain_openai import ChatOpenAI
 from src.calculator import calculate
 
 
-#state list
+# state list
 
 from langgraph.prebuilt import InjectedState
 from langchain_core.tools import tool, InjectedToolCallId
@@ -35,12 +36,12 @@ class MyAgentState(MessagesState):
     chat_summary: str
     clinical_note: str
     image_summary: str
+    Imaging: list[dict]  # List of {id: int, base64: str, description: str}
     diagnosis_1: str
     diagnosis_2: str
     final_diagnosis: str
     remaining_steps: int
     images: List[AgentImage] 
-
 
 llm = ChatOpenAI(
     base_url="http://localhost:8080/v1",

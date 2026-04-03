@@ -9,7 +9,7 @@ interface AgentImage {
 }
 
 interface AgentState {
-  images?: AgentImage[];
+  Imaging?: AgentImage[];
 }
 
 export function ImageChatPopup() {
@@ -19,17 +19,29 @@ export function ImageChatPopup() {
   const [description, setDescription] = useState("");
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { state, setState } = useCoAgent<AgentState>({
-    name: "default",  // must match your LangGraph agent name
-    initialState: { images: [] },
+    name: "default",
+    initialState: { Imaging: [] },
   });
 
-  const images = state.images ?? [];
+  const images = state.Imaging ?? [];
 
   const processFile = useCallback((file: File) => {
-    if (!file.type.startsWith("image/")) return;
+    setError(null);
+
+    if (!file.type.startsWith("image/")) {
+      setError(`Invalid file type: ${file.name}. Only images are accepted.`);
+      return;
+    }
+
+    if (file.size > 5242880) {
+      setError(`File too large: ${file.name}. Maximum size is 5MB.`);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
@@ -37,6 +49,7 @@ export function ImageChatPopup() {
       // strip the data:image/...;base64, prefix — store raw base64 only
       setBase64(result.split(",")[1]);
     };
+    reader.onerror = () => setError(`Failed to read ${file.name}`);
     reader.readAsDataURL(file);
   }, []);
 
@@ -57,7 +70,7 @@ export function ImageChatPopup() {
       description: description.trim(),
     };
 
-    setState({ images: [...images, newImage] });
+    setState({ Imaging: [...images, newImage] });
 
     // reset form
     setPreview(null);
@@ -70,45 +83,47 @@ export function ImageChatPopup() {
   const clearImage = () => {
     setPreview(null);
     setBase64(null);
+    setError(null);
     if (inputRef.current) inputRef.current.value = "";
   };
 
   return (
     <>
-      {/* Trigger button */}
+      {/* Trigger button - bottom-right corner FAB */}
       <button
         onClick={() => setOpen((p) => !p)}
         aria-label="Upload image"
         style={{
           position: "fixed",
           bottom: "24px",
-          left: "50%",
-          transform: "translateX(-50%)",
-          padding: "10px 20px",
-          borderRadius: "999px",
+          right: "24px",
+          width: "48px",
+          height: "48px",
+          borderRadius: "50%",
           background: "var(--primary)",
           color: "var(--primary-foreground)",
           border: "none",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
-          gap: "8px",
-          fontSize: "13px",
-          fontWeight: 500,
+          justifyContent: "center",
           zIndex: 1000,
           boxShadow: "0 2px 12px rgba(0,0,0,0.18)",
+          transition: "opacity 0.15s ease",
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
           <rect x="3" y="3" width="18" height="18" rx="3" stroke="currentColor" strokeWidth="2"/>
           <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/>
           <path d="M21 15l-5-5L5 21" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
-        Upload image
         {images.length > 0 && (
           <span style={{
-            background: "var(--primary-foreground)",
-            color: "var(--primary)",
+            position: "absolute",
+            top: "-4px",
+            right: "-4px",
+            background: "var(--destructive)",
+            color: "var(--destructive-foreground)",
             fontSize: "10px",
             fontWeight: 700,
             width: "18px", height: "18px",
@@ -124,9 +139,8 @@ export function ImageChatPopup() {
       {open && (
         <div style={{
           position: "fixed",
-          bottom: "76px",
-          left: "50%",
-          transform: "translateX(-50%)",
+          bottom: "84px",
+          right: "24px",
           width: "min(380px, calc(100vw - 32px))",
           borderRadius: "14px",
           border: "0.5px solid var(--border)",
@@ -155,6 +169,20 @@ export function ImageChatPopup() {
           </div>
 
           <div style={{ padding: "14px 16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+
+            {/* Error message */}
+            {error && (
+              <div style={{
+                padding: "8px 10px",
+                borderRadius: "8px",
+                background: "var(--destructive)",
+                color: "var(--destructive-foreground)",
+                fontSize: "12px",
+                fontWeight: 500,
+              }}>
+                {error}
+              </div>
+            )}
 
             {/* Drop zone / preview */}
             {preview ? (
