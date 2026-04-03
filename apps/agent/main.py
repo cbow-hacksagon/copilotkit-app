@@ -23,6 +23,9 @@ from langchain_core.tools import tool
 from langgraph.types import Command
 from typing import Annotated
 
+from src.medical import medical_tools
+
+
 class MyAgentState(MessagesState):
     chat_summary: str
     clinical_note: str
@@ -30,90 +33,9 @@ class MyAgentState(MessagesState):
     diagnosis_1: str
     diagnosis_2: str
     final_diagnosis: str
-    counter: int
     remaining_steps: int
 
-@tool
-def summarize_chat(expression: str, runtime: ToolRuntime) -> Command:
-    """
-    Use this tool to store the summary of the users chat inside the agent state variable, invoke this tool with the chat summary as the expression. Generate a detailed summary with user complaints and your questions and interpretations.
-    """
 
-    
-    summary = runtime.state.get("chat_summary", "")
-    new_summary = expression
-
-    return Command(update={
-        "chat_summary": new_summary,
-        "messages": [
-            ToolMessage(
-                content="Successfully updated todos",
-                tool_call_id=runtime.tool_call_id
-            )
-        ]
-    })
-
-
-@tool
-def generate_clinical_note(expression: str, runtime: ToolRuntime) -> Command:
-    """
-    Generate a clinical note based on the user's chat summary and chat history, the note should be well structured with primary complaints, differential, assessment and concerns or tests if any required. Put the clinical note as the expression. 
-    """
-
-    summary = runtime.state.get("clinical_note", "")
-    new_summary = expression
-
-    return Command(update={
-        "clinical_note": new_summary,
-        "messages": [
-            ToolMessage(
-                content="Successfully updated todos",
-                tool_call_id=runtime.tool_call_id
-            )
-        ]
-    })
-
-
-@tool
-def check_summaries(expression: str, runtime: ToolRuntime) -> str:
-    """
-    Checks the user's current chat summary and clinical note.
-    """
-    # Access the state directly from the injected Annotated type
-    cl = runtime.state.get("clinical_note", "")
-    ch = runtime.state.get("chat_summary", "")
-    return f"The current counter chat summary is {ch} and clinical note is {cl}."
-
-
-
-
-@tool
-def check_counter(expression: str, runtime: ToolRuntime) -> str:
-    """
-    Checks the user's current counter value.
-    """
-    # Access the state directly from the injected Annotated type
-    val = runtime.state.get("counter", 0) 
-    return f"The current counter value is {val}."
-
-@tool
-def increment(number: int, runtime:ToolRuntime) -> Command:
-    """
-    Increments the counter by a specific number.
-    """
-    current_counter = runtime.state.get("counter", 0)
-    new_val = current_counter + number
-    
-    # We return Command to update the state AND content to inform the LLM
-    return Command(update={
-        "counter": new_val,
-        "messages": [
-            ToolMessage(
-                content="Successfully updated todos",
-                tool_call_id=runtime.tool_call_id
-            )
-        ]
-    })
 
 llm = ChatOpenAI(
     base_url="http://localhost:8080/v1",
@@ -130,12 +52,10 @@ llm = ChatOpenAI(
 
 agent = create_react_agent(
     model=llm,
-    tools=[calculate,increment, check_counter],
+    tools=[*medical_tools],
     state_schema=MyAgentState,
     prompt="""
-        You are a polished, professional assistant powered by Llama.
-        Keep responses brief and polished — 1 to 2 sentences max.
-        Be helpful, accurate, and conversational.
+    Your goal is to collect a complete primary physical assesment of a patient. Ask the patient for their primary complaint first. Then, through a multi-turn conversation, gather relevant history: onset, duration, severity, associated symptoms, aggravating/relieving factors, and past medical history. When you have sufficient information or a key discovery, use the appropriate tool to generate a chat summary and a structured clinical note. Do not interrupt the patient; ask one focused question at a time. End the conversation only after documentation is complete. Make sure to check for signs of dangerous diseases which require immediate medical care.
     """,
 )
 
