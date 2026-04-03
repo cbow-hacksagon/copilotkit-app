@@ -1,8 +1,9 @@
-from langchain.agents import AgentState as BaseAgentState
-from langchain.tools import ToolRuntime, tool
-from langchain.messages import ToolMessage
+from langgraph.prebuilt import InjectedState
+from langchain_core.tools import tool, InjectedToolCallId
+from langgraph.graph import MessagesState
+from langchain_core.messages import ToolMessage
 from langgraph.types import Command
-from typing import TypedDict, Literal
+from typing import TypedDict, Literal, Annotated
 import uuid
 
 class Todo(TypedDict):
@@ -12,38 +13,32 @@ class Todo(TypedDict):
     emoji: str
     status: Literal["pending", "completed"]
 
-class AgentState(BaseAgentState):
+class AgentState(MessagesState):
     todos: list[Todo]
-
+    remaining_steps: int
 @tool
-def manage_todos(todos: list[Todo], runtime: ToolRuntime) -> Command:
-    """
-    Manage the current todos.
-    """
-    # Ensure all todos have IDs that are unique
+def manage_todos(
+    todos: list[Todo],
+    tool_call_id: Annotated[str, InjectedToolCallId],
+) -> Command:
+    """Manage the current todos."""
     for todo in todos:
         if "id" not in todo or not todo["id"]:
             todo["id"] = str(uuid.uuid4())
 
-    # Update the state
     return Command(update={
         "todos": todos,
         "messages": [
             ToolMessage(
                 content="Successfully updated todos",
-                tool_call_id=runtime.tool_call_id
+                tool_call_id=tool_call_id,
             )
         ]
     })
 
 @tool
-def get_todos(runtime: ToolRuntime):
-    """
-    Get the current todos.
-    """
-    return runtime.state.get("todos", [])
+def get_todos(state: Annotated[AgentState, InjectedState]) -> list[Todo]:
+    """Get the current todos."""
+    return state.get("todos", [])
 
-todo_tools = [
-    manage_todos,
-    get_todos,
-]
+todo_tools = [manage_todos, get_todos]

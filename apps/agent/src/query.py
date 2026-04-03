@@ -1,4 +1,4 @@
-from langchain.tools import tool
+from langchain_core.tools import tool
 from pathlib import Path
 import csv
 
