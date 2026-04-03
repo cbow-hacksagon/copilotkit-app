@@ -9,7 +9,7 @@ from src.calculator import calculate
 
 #state list
 
-from langgraph.prebuilt import AgentState, InjectedState
+from langgraph.prebuilt import InjectedState
 from langchain_core.tools import tool, InjectedToolCallId
 from langgraph.graph import MessagesState
 from langchain_core.messages import ToolMessage
@@ -18,14 +18,37 @@ from typing import TypedDict, Literal, Annotated
 import uuid
 
 
-class MyAgentState(AgentState):
+
+from langchain_core.tools import tool
+from langgraph.types import Command
+from typing import Annotated
+
+class MyAgentState(MessagesState):
     counter: int
     remaining_steps: int
 
+@tool
+def check_counter(expression: str, state: Annotated[MyAgentState, InjectedState]) -> str:
+    """
+    Checks the user's current counter value.
+    """
+    # Access the state directly from the injected Annotated type
+    val = state.get("counter", 0) 
+    return f"The current counter value is {val}."
 
-        
-
-
+@tool
+def increment(number: int, state: Annotated[MyAgentState, InjectedState]) -> Command:
+    """
+    Increments the counter by a specific number.
+    """
+    current_counter = state.get("counter", 0)
+    new_val = current_counter + number
+    
+    # We return Command to update the state AND content to inform the LLM
+    return Command(
+        update={"counter": new_val},
+        content=f"Counter updated. Added {number}, new value is {new_val}."
+    )
 
 llm = ChatOpenAI(
     base_url="http://localhost:8080/v1",
@@ -42,8 +65,8 @@ llm = ChatOpenAI(
 
 agent = create_react_agent(
     model=llm,
-    tools=[calculate,],
-    state_schema=AgentState,
+    tools=[calculate,increment, check_counter],
+    state_schema=MyAgentState,
     prompt="""
         You are a polished, professional assistant powered by Llama.
         Keep responses brief and polished — 1 to 2 sentences max.
