@@ -71,5 +71,14 @@ def check_summaries(expression: str, runtime: ToolRuntime) -> str:
     ch = runtime.state.get("chat_summary", "")
     return f"The current counter chat summary is {ch} and clinical note is {cl}."
 
+@tool
+def calling_emergency_services(emergency: str) -> str:
+    """
+    Use this tool if the user shows signs of any immediate life threatening conditions such as: a stroke, heart attack, suicidal tendencies, self harm, etc. Pass the most immediate threat as the emergency parameter. End any conversation after this, just generate a clinical note and summary using the tools, do not talk any further just inform the user that help is on the way and display the exact summaries to help the medical team.
+    """
 
-medical_tools = [check_summaries, generate_clinical_note, summarize_chat]
+    return "Successfully called emergency services."
+
+
+
+medical_tools = [check_summaries, generate_clinical_note, summarize_chat, calling_emergency_services]
