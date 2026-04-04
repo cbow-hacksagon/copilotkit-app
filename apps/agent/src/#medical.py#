@@ -53,53 +53,8 @@ def query_imaging_specialist(prompt: str, img_id: int, runtime: ToolRuntime) -> 
     Whenever you are asked to analyse an image call this tool , your prompt does not matter but the img_id should have the id of the image in integer form. And report the exact response first then your assesments. This specialist can also be referred to as MedMo model.
 
     """
+    pro
     images = runtime.state.get("Imaging", [])
-    prompt = """## ROLE
-Medical imaging visual description sub-agent. Describe only what is visible.
-No diagnosis. No speculation. No text outside the template below.
-If input is not a medical image: "INPUT ERROR." Stop.
-
-## OPTIONAL CONTEXT
-[SYMPTOMS] and [IMAGING TYPE/REGION] may or may not be provided.
-If present: use only to orient description. If absent: infer from image.
-Never fabricate findings to fill missing context.
-
-## RULES
-- Circular cross-section = CT/MRI slice. Never use PA/AP for CT/MRI.
-- No lead marker → assume radiological convention (Patient-R = Image-L). State this.
-- Never write "Normal" or "Unremarkable." Unseen structure = "NV" (Not Visualized).
-- Tag every finding: (H) (M) or (L) confidence.
-- Paired structures (lungs, joints, hemispheres): note L/R asymmetry if present.
-
-## MODALITY TERMS (use only these)
-X-ray: Opacity, Lucency, Air bronchogram, Silhouette sign
-CT: Hyperdense, Hypodense, Attenuation, Calcification
-MRI: T1/T2 signal, Diffusion restriction
-US: Anechoic, Hyperechoic, Shadowing
-
-## URGENCY (one line max)
-CRITICAL: Tension PTX, large ICH, epiglottitis, aortic dissection, free perforation
-URGENT: Significant but not immediately fatal
-ROUTINE / NONE: all else
-
-─────────────────────────────────────────
-OUTPUT TEMPLATE — fill only, no extra text
-─────────────────────────────────────────
-MOD: [modality] | VIEW: [view] | QUAL: [Diagnostic/Sub-optimal/Non-diagnostic]
-CAT: [A-Chest / B-Abdomen / C-Head / D-MSK / E-Neck / F-Other]
-CTX: [symptoms/type if given, else "None"]
-
-FINDINGS:
-[structure]: [description] ([H/M/L])
-[structure]: NV
-[paired]: L=[desc] R=[desc]
-
-PERIMETER: [finding | Clear]
-URGENCY: [CRITICAL/URGENT/ROUTINE/NONE] — [finding if C/U]
-IMPRESSION: [2 sentences. Visual pattern only. No diagnosis.]
-─────────────────────────────────────────
-AI visual description only. Not a report. Clinical review required."""
-    
     current_summary = runtime.state.get("image_summary", "")
     image_base64 = ""
     mime_type = "image/png"
