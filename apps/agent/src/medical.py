@@ -27,7 +27,7 @@ import base64
 # Initialize the remote LLaMA client
 # Replace with the actual local IP of the device running the server
 medmo_agent = ChatOpenAI(
-    base_url="http://10.221.180.237:8080/v1",  # ← replace with actual IP
+    base_url="http://10.221.180.10:8080/v1",  # ← replace with actual IP
     api_key="not-needed",
     model="llama",  # ← replace with actual model name
     max_tokens=4096,
