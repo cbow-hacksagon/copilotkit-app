@@ -48,12 +48,13 @@ def query_diagnostic_specialist(prompt: str, runtime: ToolRuntime) -> str:
 
 
 @tool
-def query_imaging_specialist(prompt: str, img_id: int, runtime: ToolRuntime) -> str:
+def query_imaging_specialist(prompt: str, img_id: int, runtime: ToolRuntime) -> Command:
     """
     Whenever you are asked to analyse an image call this tool , your prompt does not matter but the img_id should have the id of the image in integer form. And report the exact response first then your assesments. This specialist can also be referred to as MedMo model.
 
     """
     images = runtime.state.get("Imaging", [])
+    current_summary = runtime.state.get("image_summary", "")
     image_base64 = ""
     mime_type = "image/png"
     for i in images:
@@ -76,7 +77,17 @@ def query_imaging_specialist(prompt: str, img_id: int, runtime: ToolRuntime) -> 
         ]
     )
     response = medmo_agent.invoke([message])
-    return response.content
+    return Command(
+        update={
+            "image_summary": current_summary+response.content,
+            "messages": [
+                ToolMessage(
+                    content=f"Successfully appended to the image summary state, result of the image analysis {response.content}",
+                    tool_call_id=runtime.tool_call_id,
+                )
+            ],
+        }
+    )
 
 
 @tool
@@ -132,6 +143,52 @@ def check_summaries(expression: str, runtime: ToolRuntime) -> str:
     cl = runtime.state.get("clinical_note", "")
     ch = runtime.state.get("chat_summary", "")
     return f"The current counter chat summary is {ch} and clinical note is {cl}."
+
+
+
+
+@tool
+def check_image_summary(expression: str, runtime: ToolRuntime) -> str:
+    """
+    Check the user's current image summary state which includes all of the images consulted with the medmo agent before this. Put anything as the expression the result will be a complete summary.
+    """
+
+    images = runtime.state.get("image_summary", "")
+
+    return images
+
+
+
+@tool
+def check_initial_diagnosis(expression: str, runtime: ToolRuntime) -> str:
+    """
+    Check the user's initial diagnosis given after a primary assessment.
+    """
+
+    images = runtime.state.get("diagnosis_1", "")
+
+    return images
+
+
+@tool
+def generate_initial_diagnosis(expression: str, runtime: ToolRuntime) -> Command:
+    """
+    After enough information has beem retrieved you can generate an initial diagnosis of the patient, this tool should only be called once and not changed later.
+    """
+
+    new_summary = expression
+
+    return Command(
+        update={
+            "diagnosis_1": new_summary,
+            "messages": [
+                ToolMessage(
+                    content=f"Successfully updated the contents to {new_summary}",
+                    tool_call_id=runtime.tool_call_id,
+                )
+            ],
+        }
+    )
 
 
 @tool
@@ -224,4 +281,7 @@ medical_tools = [
     calling_emergency_services,
     check_images,
     store_medical_image,
+    check_image_summary,
+    check_initial_diagnosis,
+    generate_initial_diagnosis,
 ]

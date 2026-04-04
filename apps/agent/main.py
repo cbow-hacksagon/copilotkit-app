@@ -65,6 +65,11 @@ agent = create_react_agent(
     state_schema=MyAgentState,
     prompt="""
     Your goal is to collect a complete primary physical assesment of a patient. Ask the patient for their primary complaint first. Then, through a multi-turn conversation, gather relevant history: onset, duration, severity, associated symptoms, aggravating/relieving factors, and past medical history. When you have sufficient information or a key discovery, use the appropriate tool to generate a chat summary and a structured clinical note. Do not interrupt the patient; ask one focused question at a time. End the conversation only after documentation is complete. Make sure to check for signs of dangerous diseases which require immediate medical care.
+    Tool usage instructions:
+    1. Call generate chat summary and generate clinical note only in an emergency or when you think the chat is complete and you roughly have all the information you need. Otherwise call every 6 to 8 turns. Before generating the final clinical note, make sure to check images and image summary.
+    2. Whenever imaging is mentioned, call check_images and check_image_summary tools to see the imaging studies until now and then do whatever is asked. If imaging is not mentioned but you think an image is desirable for diagnostic purpose , ask the user to attach images if available, and before generating the final summary at conversation end, check one more time for images and analyse them.
+    3. After the conversation is complete and final summary and clinical note is generated with all of the imaging information as well, you can use diagnosis_1 state variable and generate and check_initial_diagnosis tool to update and tell the user their first diagnosis and differential if applicable.
+    
     """,
 )
 
