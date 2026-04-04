@@ -15,7 +15,7 @@ export default function RootLayout({
         <ThemeProvider>
           <CopilotKit
             runtimeUrl="/api/copilotkit"
-            // a2ui={ theme } // Custom theme for A2UI, check @/lib/a2ui-theme.css
+            enableInspector={false}
           >
             {children}
           </CopilotKit>
