@@ -38,7 +38,11 @@ medmo_agent = ChatOpenAI(
 @tool
 def query_diagnostic_specialist(prompt: str, runtime: ToolRuntime) -> str:
     """
-    Send a prompt or query to a diagnostic specialist, put your question in the prompt.
+    Consult the MedMo diagnostic specialist model for a second-opinion clinical
+    assessment. Pass a focused clinical question or case summary in the prompt.
+    The specialist will append the current clinical note and chat summary as
+    context before responding. Use this when you need differential diagnosis
+    input or want to validate your clinical reasoning.
     """
     case_summary = runtime.state.get(
         "clinical_note", runtime.state.get("chat_summary", "")
@@ -50,11 +54,17 @@ def query_diagnostic_specialist(prompt: str, runtime: ToolRuntime) -> str:
 @tool
 def query_imaging_specialist(prompt: str, img_id: int, runtime: ToolRuntime) -> Command:
     """
-    Whenever you are asked to analyse an image call this tool , your prompt does not matter but the img_id should have the id of the image in integer form. And report the exact response first then your assesments. This specialist can also be referred to as MedMo model.
-
+    Analyze a medical image using the MedMo vision specialist model. Provide the
+    exact integer img_id of the image to analyze. The specialist returns a
+    structured radiological description including: modality, anatomical category,
+    findings with confidence tags (H/M/L), urgency classification, and a visual
+    impression. Results are automatically appended to the image_summary state.
+    Always call check_images first to see available image IDs. Report the
+    specialist's exact response to the patient, then provide your clinical
+    interpretation.
     """
     images = runtime.state.get("Imaging", [])
-    prompt = """## ROLE
+    prompt1 = """## ROLE
 Medical imaging visual description sub-agent. Describe only what is visible.
 No diagnosis. No speculation. No text outside the template below.
 If input is not a medical image: "INPUT ERROR." Stop.
@@ -99,13 +109,15 @@ URGENCY: [CRITICAL/URGENT/ROUTINE/NONE] — [finding if C/U]
 IMPRESSION: [2 sentences. Visual pattern only. No diagnosis.]
 ─────────────────────────────────────────
 AI visual description only. Not a report. Clinical review required."""
-    
+
     current_summary = runtime.state.get("image_summary", "")
     image_base64 = ""
+    
     mime_type = "image/png"
     for i in images:
         if i["id"] == img_id:
             image_base64 = i["base64"]
+            prompt = prompt1 + f"Clinical context: {prompt}"+ f"Image description {i['description']}"
             mime_type = i.get("mimeType", "image/png")
             print(image_base64)
             break
@@ -125,7 +137,7 @@ AI visual description only. Not a report. Clinical review required."""
     response = medmo_agent.invoke([message])
     return Command(
         update={
-            "image_summary": current_summary+response.content,
+            "image_summary": current_summary + response.content,
             "messages": [
                 ToolMessage(
                     content=f"Successfully appended to the image summary state, result of the image analysis {response.content}",
@@ -139,7 +151,12 @@ AI visual description only. Not a report. Clinical review required."""
 @tool
 def summarize_chat(expression: str, runtime: ToolRuntime) -> Command:
     """
-    Use this tool to store the summary of the users chat inside the agent state variable, invoke this tool with the chat summary as the expression. Generate a detailed summary with user complaints and your questions and interpretations.
+    Store a comprehensive chat summary in the agent state. The summary should
+    include: the patient's primary complaint, key history points (onset, duration,
+    severity, associated symptoms, aggravating/relieving factors), relevant past
+    medical history, your clinical observations and interpretations, and any
+    notable findings or red flags. This summary serves as context for downstream
+    specialist consultations and documentation. Pass the summary text as the expression.
     """
 
     summary = runtime.state.get("chat_summary", "")
@@ -161,7 +178,12 @@ def summarize_chat(expression: str, runtime: ToolRuntime) -> Command:
 @tool
 def generate_clinical_note(expression: str, runtime: ToolRuntime) -> Command:
     """
-    Generate a clinical note based on the user's chat summary and chat history, the note should be well structured with primary complaints, differential, assessment and concerns or tests if any required. Put the clinical note as the expression.
+    Store a structured clinical note in the agent state. The note should follow
+    standard clinical format: Chief Complaint, History of Present Illness,
+    relevant Past Medical History, Assessment/Impression, key Concerns, and
+    Recommended investigations or follow-up. Incorporate any available imaging
+    findings from image_summary. This note serves as the formal clinical record
+    and context for specialist consultations. Pass the clinical note text as the expression.
     """
 
     summary = runtime.state.get("clinical_note", "")
@@ -183,7 +205,9 @@ def generate_clinical_note(expression: str, runtime: ToolRuntime) -> Command:
 @tool
 def check_summaries(expression: str, runtime: ToolRuntime) -> str:
     """
-    Checks the user's current chat summary and clinical note. You can input any expression, it does not matter, the tool will return the summaries anyway, if you check with this tool prioritize giving the exact string as returned from the tool.
+    Retrieve the current chat_summary and clinical_note from agent state. Use
+    this to review what has been documented so far before generating updated
+    summaries, clinical notes, or diagnoses.
     """
     # Access the state directly from the injected Annotated type
     cl = runtime.state.get("clinical_note", "")
@@ -191,12 +215,12 @@ def check_summaries(expression: str, runtime: ToolRuntime) -> str:
     return f"The current counter chat summary is {ch} and clinical note is {cl}."
 
 
-
-
 @tool
 def check_image_summary(expression: str, runtime: ToolRuntime) -> str:
     """
-    Check the user's current image summary state which includes all of the images consulted with the medmo agent before this. Put anything as the expression the result will be a complete summary.
+    Retrieve the accumulated image analysis results from all previously consulted
+    imaging studies. Use this to review imaging findings before generating
+    clinical notes, summaries, or diagnoses.
     """
 
     images = runtime.state.get("image_summary", "")
@@ -204,11 +228,12 @@ def check_image_summary(expression: str, runtime: ToolRuntime) -> str:
     return images
 
 
-
 @tool
 def check_initial_diagnosis(expression: str, runtime: ToolRuntime) -> str:
     """
-    Check the user's initial diagnosis given after a primary assessment.
+    Retrieve the current initial diagnosis (diagnosis_1) from agent state. Use
+    this to review the primary diagnostic impression before proceeding to
+    specialist consultations or final diagnosis synthesis.
     """
 
     images = runtime.state.get("diagnosis_1", "")
@@ -219,7 +244,13 @@ def check_initial_diagnosis(expression: str, runtime: ToolRuntime) -> str:
 @tool
 def generate_initial_diagnosis(expression: str, runtime: ToolRuntime) -> Command:
     """
-    After enough information has beem retrieved you can generate an initial diagnosis of the patient, this tool should only be called once and not changed later.
+    Record the initial primary diagnosis after completing patient intake,
+    documentation, and imaging review. This should be called ONCE when you have
+    sufficient clinical information. The diagnosis should include: your primary
+    diagnostic impression, relevant differential diagnoses with reasoning, and
+    key supporting clinical findings. This forms the foundation for subsequent
+    specialist consultations and final diagnosis synthesis. Pass the diagnosis
+    text as the expression.
     """
 
     new_summary = expression
@@ -240,7 +271,12 @@ def generate_initial_diagnosis(expression: str, runtime: ToolRuntime) -> Command
 @tool
 def calling_emergency_services(emergency: str) -> str:
     """
-    Use this tool if the user shows signs of any immediate life threatening conditions such as: a stroke, heart attack, suicidal tendencies, self harm, etc. Pass the most immediate threat as the emergency parameter. End any conversation after this, just generate a clinical note and summary using the tools, do not talk any further just inform the user that help is on the way and display the exact summaries to help the medical team.
+    Activate emergency protocol when the patient describes signs of an immediate
+    life-threatening condition: stroke symptoms (FAST), acute coronary syndrome,
+    suicidal ideation, self-harm, anaphylaxis, severe trauma, or other critical
+    emergencies. Pass the specific threat description as the emergency parameter.
+    After calling this tool, generate final documentation, inform the patient
+    that emergency help is being arranged, and do not continue the conversation.
     """
 
     return "Successfully called emergency services."
@@ -249,8 +285,10 @@ def calling_emergency_services(emergency: str) -> str:
 @tool
 def check_images(expression: str, runtime: ToolRuntime) -> str:
     """
-    Checks the images currently stored in agent Imaging state. Input any expression, it does not matter.
-    Returns the ID, description, and a truncated base64 preview for each image.
+    List all medical images currently stored in agent state, including their ID,
+    description, and a base64 preview. Use this to see what images are available
+    before calling query_imaging_specialist. The image ID (integer) is required
+    for image analysis.
     """
     images = runtime.state.get("Imaging", [])
 
@@ -280,8 +318,11 @@ def store_medical_image(
 ) -> Command:
     """
     Store a medical image in the agent Imaging state for later analysis.
-    Accepts a numeric ID, raw base64 string (no data URL prefix), and a description.
-    The image will be saved and can be retrieved later via check_images tool.
+    Requires: image_id (integer), base64-encoded image data (raw, without data
+    URL prefix), and a brief description. The image will be available for
+    subsequent analysis via query_imaging_specialist. Note: Images are typically
+    uploaded by the patient through the frontend UI -- this tool is called by
+    the frontend, not directly by you.
     """
     try:
         existing_images = runtime.state.get("Imaging", [])
