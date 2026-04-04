@@ -19,6 +19,61 @@ from langgraph.types import Command
 from typing import Annotated
 
 
+from langchain_openai import ChatOpenAI
+from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage, SystemMessage
+import base64
+
+# Initialize the remote LLaMA client
+# Replace with the actual local IP of the device running the server
+medmo_agent = ChatOpenAI(
+    base_url="http://10.221.180.237:8080/v1",  # ← replace with actual IP
+    api_key="not-needed",
+    model="llama",                            # ← replace with actual model name
+    max_tokens=4096,
+    temperature=0.7,
+)
+
+@tool
+def query_diagnostic_specialist(prompt: str, runtime: ToolRuntime) -> str:
+    """
+    Send a prompt or query to a diagnostic specialist, put your question in the prompt.
+    """
+    case_summary = runtime.state.get("clinical_note", runtime.state.get("chat_summary", ""))
+    response = medmo_agent.invoke([HumanMessage(content=prompt+case_summary)])
+    return response.content
+
+@tool
+def query_imaging_specialist(prompt: str, img_id: int, runtime: ToolRuntime) -> str:
+    """
+    Whenever you are asked to analyse an image call this tool , your prompt does not matter but the img_id should have the id of the image in integer form. And report the exact response first then your assesments. This specialist can also be referred to as MedMo model.
+    
+    """
+    images = runtime.state.get("images", [])
+    image_base64 = ""
+    for i in images:
+        if i["id"] == img_id:
+            image_base64 = i["base64"]
+            print(image_base64)
+            break
+    message = HumanMessage(content=[
+        {
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{image_base64}"
+            }
+        },
+        {
+            "type": "text",
+            "text": prompt
+        }
+    ])
+    response = medmo_agent.invoke([message])
+    return response.content
+
+
+
+
 @tool
 def summarize_chat(expression: str, runtime: ToolRuntime) -> Command:
     """
@@ -189,4 +244,4 @@ medical_tools = [
     check_images,
     store_medical_image,
 ]
-medical_tools = [check_summaries, generate_clinical_note, summarize_chat, calling_emergency_services, check_images]
+medical_tools = [query_diagnostic_specialist, query_imaging_specialist  , check_summaries, generate_clinical_note, summarize_chat, calling_emergency_services, check_images]
