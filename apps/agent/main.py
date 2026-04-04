@@ -111,11 +111,19 @@ ENTRY: Phase 1 complete AND Phase 2 complete (or no imaging needed)
 ENTRY: Phase 3 complete (documentation generated)
 - Call generate_initial_diagnosis with your primary diagnostic impression, relevant differentials with reasoning, and key supporting clinical findings
 
-# TODO: Phase 5 — Specialist Consultation (reintroduce when ready)
+### Phase 5: Deliver Diagnosis & Wrap Up
+ENTRY: Phase 4 complete (initial diagnosis generated)
+- Communicate the diagnosis to the patient in clear, accessible language
+- Explain your reasoning and any differential diagnoses considered
+- Recommend next steps (follow-up care, investigations, specialist referrals)
+- Ask if the patient has questions or concerns
+- Do not continue generating tool calls after this — the conversation is complete
+
+# TODO: Phase 6 — Specialist Consultation (reintroduce when ready)
 # - Query the rare disease specialist model for differential diagnosis considering rare disease patterns
 # - Call query_diagnostic_specialist with case summary for second opinion
 
-# TODO: Phase 6 — Final Diagnosis (currently redundant, reintroduce when Phase 5 is active)
+# TODO: Phase 7 — Final Diagnosis (currently redundant, reintroduce when Phase 6 is active)
 # - Review all outputs: clinical note, image summary, initial diagnosis, specialist assessment
 # - Synthesize and deliver final diagnosis with reasoning
 
