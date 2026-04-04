@@ -22,14 +22,14 @@ from typing import Annotated
 from langchain_openai import ChatOpenAI
 from langchain_core.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage
+import os
 import base64
 
 # Initialize the remote LLaMA client
-# Replace with the actual local IP of the device running the server
 medmo_agent = ChatOpenAI(
-    base_url="http://10.221.180.10:8080/v1",  # ← replace with actual IP
+    base_url=os.environ.get("MEDMO_BASE_URL", "http://localhost:8080/v1"),
     api_key="not-needed",
-    model="llama",  # ← replace with actual model name
+    model="llama",
     max_tokens=4096,
     temperature=0.7,
 )
@@ -112,12 +112,16 @@ AI visual description only. Not a report. Clinical review required."""
 
     current_summary = runtime.state.get("image_summary", "")
     image_base64 = ""
-    
+
     mime_type = "image/png"
     for i in images:
         if i["id"] == img_id:
             image_base64 = i["base64"]
-            prompt = prompt1 + f"Clinical context: {prompt}"+ f"Image description {i['description']}"
+            prompt = (
+                prompt1
+                + f"Clinical context: {prompt}"
+                + f"Image description {i['description']}"
+            )
             mime_type = i.get("mimeType", "image/png")
             print(image_base64)
             break
