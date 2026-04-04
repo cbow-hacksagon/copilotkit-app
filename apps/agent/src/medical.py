@@ -29,49 +29,54 @@ import base64
 medmo_agent = ChatOpenAI(
     base_url="http://10.221.180.237:8080/v1",  # ← replace with actual IP
     api_key="not-needed",
-    model="llama",                            # ← replace with actual model name
+    model="llama",  # ← replace with actual model name
     max_tokens=4096,
     temperature=0.7,
 )
+
 
 @tool
 def query_diagnostic_specialist(prompt: str, runtime: ToolRuntime) -> str:
     """
     Send a prompt or query to a diagnostic specialist, put your question in the prompt.
     """
-    case_summary = runtime.state.get("clinical_note", runtime.state.get("chat_summary", ""))
-    response = medmo_agent.invoke([HumanMessage(content=prompt+case_summary)])
+    case_summary = runtime.state.get(
+        "clinical_note", runtime.state.get("chat_summary", "")
+    )
+    response = medmo_agent.invoke([HumanMessage(content=prompt + case_summary)])
     return response.content
+
 
 @tool
 def query_imaging_specialist(prompt: str, img_id: int, runtime: ToolRuntime) -> str:
     """
     Whenever you are asked to analyse an image call this tool , your prompt does not matter but the img_id should have the id of the image in integer form. And report the exact response first then your assesments. This specialist can also be referred to as MedMo model.
-    
+
     """
-    images = runtime.state.get("images", [])
+    images = runtime.state.get("Imaging", [])
     image_base64 = ""
+    mime_type = "image/png"
     for i in images:
         if i["id"] == img_id:
             image_base64 = i["base64"]
+            mime_type = i.get("mimeType", "image/png")
             print(image_base64)
             break
-    message = HumanMessage(content=[
-        {
-            "type": "image_url",
-            "image_url": {
-                "url": f"data:image/png;base64,{image_base64}"
-            }
-        },
-        {
-            "type": "text",
-            "text": prompt
-        }
-    ])
+
+    if not image_base64:
+        return f"Error: No image found with ID {img_id}. Available images: {[img.get('id') for img in images]}"
+
+    message = HumanMessage(
+        content=[
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{mime_type};base64,{image_base64}"},
+            },
+            {"type": "text", "text": prompt},
+        ]
+    )
     response = medmo_agent.invoke([message])
     return response.content
-
-
 
 
 @tool
@@ -137,19 +142,20 @@ def calling_emergency_services(emergency: str) -> str:
 
     return "Successfully called emergency services."
 
+
 @tool
 def check_images(expression: str, runtime: ToolRuntime) -> str:
     """
-    Checks the images currently stored in agent state. Input any expression, it does not matter.
+    Checks the images currently stored in agent Imaging state. Input any expression, it does not matter.
     Returns the ID, description, and a truncated base64 preview for each image.
     """
-    images = runtime.state.get("images", [])
-    
+    images = runtime.state.get("Imaging", [])
+
     if not images:
         return "No images currently in agent state."
-    
+
     result = f"There are {len(images)} image(s) in agent state:\n\n"
-    
+
     for img in images:
         img_id = img.get("id", "?")
         description = img.get("description", "")
@@ -161,8 +167,9 @@ def check_images(expression: str, runtime: ToolRuntime) -> str:
             f"Base64 preview (first 60 chars): {preview}\n"
             f"Total base64 length: {len(base64)} chars\n\n"
         )
-    
+
     return result.strip()
+
 
 @tool
 def store_medical_image(
@@ -208,35 +215,9 @@ def store_medical_image(
         )
 
 
-@tool
-def check_images(expression: str, runtime: ToolRuntime) -> str:
-    """
-    Checks the images currently stored in agent Imaging state. Input any expression, it does not matter.
-    Returns the ID, description, and a truncated base64 preview for each image.
-    """
-    images = runtime.state.get("Imaging", [])
-
-    if not images:
-        return "No images currently in agent state."
-
-    result = f"There are {len(images)} image(s) in agent state:\n\n"
-
-    for img in images:
-        img_id = img.get("id", "?")
-        description = img.get("description", "")
-        base64 = img.get("base64", "")
-        preview = base64[:60] + "..." if len(base64) > 60 else base64
-        result += (
-            f"Image ID: {img_id}\n"
-            f"Description: {description}\n"
-            f"Base64 preview (first 60 chars): {preview}\n"
-            f"Total base64 length: {len(base64)} chars\n\n"
-        )
-
-    return result.strip()
-
-
 medical_tools = [
+    query_diagnostic_specialist,
+    query_imaging_specialist,
     check_summaries,
     generate_clinical_note,
     summarize_chat,
@@ -244,4 +225,3 @@ medical_tools = [
     check_images,
     store_medical_image,
 ]
-medical_tools = [query_diagnostic_specialist, query_imaging_specialist  , check_summaries, generate_clinical_note, summarize_chat, calling_emergency_services, check_images]

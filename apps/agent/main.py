@@ -27,10 +27,12 @@ from typing import TypedDict, List, Optional
 from src.medical import medical_tools
 
 
-class AgentImage(TypedDict):
+class AgentImage(TypedDict, total=False):
     id: int
     base64: str
+    mimeType: str
     description: str
+
 
 class MyAgentState(MessagesState):
     chat_summary: str
@@ -41,7 +43,8 @@ class MyAgentState(MessagesState):
     diagnosis_2: str
     final_diagnosis: str
     remaining_steps: int
-    images: List[AgentImage] 
+    images: List[AgentImage]
+
 
 llm = ChatOpenAI(
     base_url="http://localhost:8080/v1",

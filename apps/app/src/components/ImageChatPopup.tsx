@@ -5,6 +5,7 @@ import { useCoAgent } from "@copilotkit/react-core";
 interface AgentImage {
   id: number;
   base64: string;
+  mimeType: string;
   description: string;
 }
 
@@ -16,6 +17,7 @@ export function ImageChatPopup() {
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [base64, setBase64] = useState<string | null>(null);
+  const [mimeType, setMimeType] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [dragging, setDragging] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -46,8 +48,11 @@ export function ImageChatPopup() {
     reader.onload = (e) => {
       const result = e.target?.result as string;
       setPreview(result);
-      // strip the data:image/...;base64, prefix — store raw base64 only
-      setBase64(result.split(",")[1]);
+      // extract mime type and raw base64 separately
+      const [dataPrefix, rawBase64] = result.split(",");
+      const mimeMatch = dataPrefix.match(/data:(image\/\w+);base64/);
+      setMimeType(mimeMatch ? mimeMatch[1] : "image/png");
+      setBase64(rawBase64);
     };
     reader.onerror = () => setError(`Failed to read ${file.name}`);
     reader.readAsDataURL(file);
@@ -67,6 +72,7 @@ export function ImageChatPopup() {
     const newImage: AgentImage = {
       id: images.length + 1,
       base64,
+      mimeType: mimeType || "image/png",
       description: description.trim(),
     };
 
@@ -75,6 +81,7 @@ export function ImageChatPopup() {
     // reset form
     setPreview(null);
     setBase64(null);
+    setMimeType(null);
     setDescription("");
     setSubmitting(false);
     setOpen(false);
@@ -83,6 +90,7 @@ export function ImageChatPopup() {
   const clearImage = () => {
     setPreview(null);
     setBase64(null);
+    setMimeType(null);
     setError(null);
     if (inputRef.current) inputRef.current.value = "";
   };
