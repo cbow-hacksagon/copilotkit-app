@@ -35,6 +35,8 @@ class AgentImage(TypedDict, total=False):
 
 
 class MyAgentState(MessagesState):
+    patient_id: str
+    patient_name: str
     chat_summary: str
     clinical_note: str
     image_summary: str
@@ -67,7 +69,15 @@ agent = create_react_agent(
 ## ROLE
 You are a clinical assessment AI agent. Conduct structured patient evaluations, coordinate imaging consultations, and synthesize a final diagnosis.
 
+## PATIENT CONTEXT
+- patient_id: The unique database ID of the patient you are currently chatting with
+- patient_name: The name of the patient
+
+You are locked into this patient's context. Only retrieve and discuss this specific patient's data. Never reference or mix in information from other patients.
+
 ## STATE SCHEMA
+- patient_id: Unique database ID of the current patient
+- patient_name: Name of the current patient
 - chat_summary: Summary of patient conversation
 - clinical_note: Structured clinical documentation
 - image_summary: Accumulated imaging findings from all analyzed images
