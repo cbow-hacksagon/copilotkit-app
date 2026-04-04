@@ -46,6 +46,10 @@ class MyAgentState(MessagesState):
     final_diagnosis: str
     remaining_steps: int
     images: List[AgentImage]
+    patient_symptoms: List[str]
+    rare_disease_scan_results: str
+    rare_disease_user_answers: str
+    rare_disease_scan_complete: bool
 
 
 llm = ChatOpenAI(
@@ -60,6 +64,19 @@ llm = ChatOpenAI(
         "top_k": 20,
     },
 )
+
+rare_disease_llm = ChatOpenAI(
+    base_url="http://localhost:8080/v1",
+    api_key="not-needed",
+    model="qwen",
+    max_tokens=2048,
+    temperature=0.3,
+    top_p=0.9,
+)
+
+from src.rare_disease_scanner import scanner
+
+scanner.llm = rare_disease_llm
 
 agent = create_react_agent(
     model=llm,
@@ -83,7 +100,11 @@ You are locked into this patient's context. Only retrieve and discuss this speci
 - image_summary: Accumulated imaging findings from all analyzed images
 - Imaging: List of stored medical images [{id, base64, description}]
 - diagnosis_1: Initial primary diagnosis
-- final_diagnosis: Synthesized final diagnosis (not yet in use)
+- final_diagnosis: Synthesized final diagnosis
+- patient_symptoms: List of symptoms gathered during intake
+- rare_disease_scan_results: JSON results from the rare disease scanner
+- rare_disease_user_answers: JSON of user answers to askable symptom questions
+- rare_disease_scan_complete: Boolean indicating if the scan loop is done
 
 ## WORKFLOW — Execute phases sequentially. Do not skip phases.
 
@@ -96,6 +117,7 @@ EXIT: You have sufficient clinical information to proceed (see criteria below)
 - CRITICAL: When the patient volunteers information, extract and incorporate it immediately. Do not re-ask questions the patient has already answered. Track what you know and only ask about gaps
 - Watch for red flags at ALL times during intake (see EMERGENCY PROTOCOL below)
 - If the patient cannot provide certain information after reasonable attempts, mark it as "not available" and proceed — do not loop indefinitely
+- Track all symptoms mentioned and store them in patient_symptoms state
 
 Intake exit criteria (proceed when you have):
   - Chief complaint (required)
@@ -121,21 +143,33 @@ ENTRY: Phase 1 complete AND Phase 2 complete (or no imaging needed)
 ENTRY: Phase 3 complete (documentation generated)
 - Call generate_initial_diagnosis with your primary diagnostic impression, relevant differentials with reasoning, and key supporting clinical findings
 
-### Phase 5: Deliver Diagnosis & Wrap Up
+### Phase 5: Deliver Diagnosis
 ENTRY: Phase 4 complete (initial diagnosis generated)
 - Communicate the diagnosis to the patient in clear, accessible language
 - Explain your reasoning and any differential diagnoses considered
 - Recommend next steps (follow-up care, investigations, specialist referrals)
 - Ask if the patient has questions or concerns
-- Do not continue generating tool calls after this — the conversation is complete
 
-# TODO: Phase 6 — Specialist Consultation (reintroduce when ready)
-# - Query the rare disease specialist model for differential diagnosis considering rare disease patterns
-# - Call query_diagnostic_specialist with case summary for second opinion
+### Phase 6: Rare Disease Scan (Automatic)
+ENTRY: Phase 5 complete (initial diagnosis delivered)
+- Call run_rare_disease_scan to perform a comprehensive rare disease differential
+- Review the scan results carefully
+- If the scan found plausible or uncertain rare disease matches with askable symptoms:
+  - Present these questions to the patient/doctor in a clear, non-alarming way
+  - Explain that these are additional considerations, not diagnoses
+  - Wait for the patient's responses
+  - After receiving answers, call run_rare_disease_scan again with the updated context
+- If no askable symptoms remain or the scan found no matches, proceed to Phase 7
+- IMPORTANT: Frame this as "checking for rare possibilities" — do not alarm the patient
 
-# TODO: Phase 7 — Final Diagnosis (currently redundant, reintroduce when Phase 6 is active)
-# - Review all outputs: clinical note, image summary, initial diagnosis, specialist assessment
-# - Synthesize and deliver final diagnosis with reasoning
+### Phase 7: Final Diagnosis Synthesis
+ENTRY: Phase 6 complete (rare_disease_scan_complete is true)
+- Review all outputs: clinical note, image summary, initial diagnosis, rare disease scan results
+- If the rare disease scan identified plausible matches, mention these as additional considerations for the doctor to keep in mind
+- Highlight any recommended diagnostic tests from the scan
+- Synthesize final diagnosis incorporating all evidence
+- Communicate any additional recommended investigations
+- Conclude the conversation
 
 ## EMERGENCY PROTOCOL (overrides ALL phases at ANY time)
 If the patient describes signs consistent with ANY of the following, IMMEDIATELY trigger emergency protocol:

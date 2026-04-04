@@ -363,6 +363,79 @@ def store_medical_image(
         )
 
 
+import json
+import re
+
+
+@tool
+def run_rare_disease_scan(runtime: ToolRuntime) -> Command:
+    """
+    Run a comprehensive rare disease scan against a FAISS index of 340k+ clinical
+    case reports and a biomedical knowledge graph. Call this after the initial
+    diagnosis is delivered. The tool extracts clinical context from agent state
+    (minus PHI), retrieves rare disease matches, validates them via LLM judgment,
+    and returns structured results with recommended tests for missing symptoms.
+    Results are stored in rare_disease_scan_results state for the frontend to render.
+    """
+    from src.rare_disease_scanner import scanner
+
+    chat_summary = runtime.state.get("chat_summary", "")
+    clinical_note = runtime.state.get("clinical_note", "")
+    image_summary = runtime.state.get("image_summary", "")
+    diagnosis_1 = runtime.state.get("diagnosis_1", "")
+    patient_name = runtime.state.get("patient_name", "")
+    patient_id = runtime.state.get("patient_id", "")
+
+    case_parts = []
+    if chat_summary:
+        case_parts.append(f"Chat Summary: {chat_summary}")
+    if clinical_note:
+        case_parts.append(f"Clinical Note: {clinical_note}")
+    if image_summary:
+        case_parts.append(f"Imaging Findings: {image_summary}")
+    if diagnosis_1:
+        case_parts.append(f"Initial Diagnosis: {diagnosis_1}")
+
+    case_summary = "\n\n".join(case_parts)
+
+    case_summary = re.sub(
+        re.escape(patient_name) if patient_name else r"NEVER_MATCH",
+        "[PATIENT]",
+        case_summary,
+        flags=re.IGNORECASE,
+    )
+    if patient_id:
+        case_summary = case_summary.replace(patient_id, "[ID]")
+
+    patient_symptoms = runtime.state.get("patient_symptoms", [])
+    user_answers = runtime.state.get("rare_disease_user_answers", "")
+    previous_results = None
+    if user_answers:
+        try:
+            previous_results = json.loads(user_answers)
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    results = scanner.scan(case_summary, patient_symptoms, previous_results)
+
+    results_json = json.dumps(results, indent=2)
+
+    return Command(
+        update={
+            "rare_disease_scan_results": results_json,
+            "rare_disease_scan_complete": not results.get(
+                "has_askable_symptoms", False
+            ),
+            "messages": [
+                ToolMessage(
+                    content=f"Rare disease scan complete. Found {results.get('plausible_count', 0)} plausible match(es), {results.get('uncertain_count', 0)} uncertain match(es). Summary: {results.get('scan_summary', '')}",
+                    tool_call_id=runtime.tool_call_id,
+                )
+            ],
+        }
+    )
+
+
 medical_tools = [
     query_diagnostic_specialist,
     query_imaging_specialist,
@@ -375,4 +448,5 @@ medical_tools = [
     check_image_summary,
     check_initial_diagnosis,
     generate_initial_diagnosis,
+    run_rare_disease_scan,
 ]
