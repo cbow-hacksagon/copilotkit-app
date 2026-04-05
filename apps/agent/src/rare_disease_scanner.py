@@ -441,6 +441,7 @@ class RareDiseaseScanner:
         case_summary: str,
         patient_symptoms: list[str],
         previous_results: dict | None = None,
+        retrieval_query: str | None = None,
     ) -> dict:
         """
         Run a comprehensive rare disease scan.
@@ -449,6 +450,9 @@ class RareDiseaseScanner:
             case_summary: PHI-stripped clinical case summary
             patient_symptoms: List of patient-reported/observed symptoms
             previous_results: Previous scan results (for re-scans with new info)
+            retrieval_query: Optional narrative query for FAISS retrieval.
+                If provided, used instead of case_summary for embedding search.
+                Should match the style of the FAISS index training data.
 
         Returns:
             Structured dict with rare disease matches, coherence scores,
@@ -456,7 +460,8 @@ class RareDiseaseScanner:
         """
         self._load()
 
-        matches = self._retrieve_diseases(case_summary)
+        query_for_retrieval = retrieval_query if retrieval_query else case_summary
+        matches = self._retrieve_diseases(query_for_retrieval)
 
         results = []
         for match in matches:

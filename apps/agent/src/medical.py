@@ -407,6 +407,39 @@ def run_rare_disease_scan(runtime: ToolRuntime) -> Command:
     if patient_id:
         case_summary = case_summary.replace(patient_id, "[ID]")
 
+    narrative_case = case_summary
+    if scanner.llm is not None:
+        rewrite_system = (
+            "You are a medical scribe. Convert structured clinical notes into "
+            "a narrative clinical case report matching published case report style."
+        )
+        rewrite_user = (
+            f"Convert the following structured clinical information into a "
+            f"narrative clinical case report, similar to published case reports.\n\n"
+            f"Requirements:\n"
+            f'- Start with patient presentation: "A [age/demographics] presented with [chief complaint]..."\n'
+            f"- Flow through history of present illness, past medical history, "
+            f"physical examination findings, imaging/lab results, and diagnosis "
+            f"in continuous prose\n"
+            f"- Preserve ALL clinical details exactly — do not omit, fabricate, "
+            f"or alter any findings\n"
+            f"- Use formal medical language with standard abbreviations "
+            f"(OCT, MRI, CT, etc.)\n"
+            f"- Write in third-person clinical narrative style\n\n"
+            f"Structured clinical information:\n"
+            f"{case_summary}"
+        )
+        try:
+            rewrite_response = scanner.llm.invoke(
+                [
+                    SystemMessage(content=rewrite_system),
+                    HumanMessage(content=rewrite_user),
+                ]
+            )
+            narrative_case = rewrite_response.content.strip()
+        except Exception:
+            pass
+
     patient_symptoms = runtime.state.get("patient_symptoms", [])
     user_answers = runtime.state.get("rare_disease_user_answers", "")
     previous_results = None
@@ -416,7 +449,9 @@ def run_rare_disease_scan(runtime: ToolRuntime) -> Command:
         except (json.JSONDecodeError, TypeError):
             pass
 
-    results = scanner.scan(case_summary, patient_symptoms, previous_results)
+    results = scanner.scan(
+        case_summary, patient_symptoms, previous_results, retrieval_query=narrative_case
+    )
 
     results_json = json.dumps(results, indent=2)
 
