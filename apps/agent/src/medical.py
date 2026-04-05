@@ -455,6 +455,10 @@ def run_rare_disease_scan(runtime: ToolRuntime) -> Command:
 
     results_json = json.dumps(results, indent=2)
 
+    total_flagged = len(results.get("all_flagged_diseases", []))
+    selected_count = len(results.get("rare_disease_matches", []))
+    eliminated_count = total_flagged - selected_count
+
     return Command(
         update={
             "rare_disease_scan_results": results_json,
@@ -463,7 +467,7 @@ def run_rare_disease_scan(runtime: ToolRuntime) -> Command:
             ),
             "messages": [
                 ToolMessage(
-                    content=f"Rare disease scan complete. Found {results.get('plausible_count', 0)} plausible match(es), {results.get('uncertain_count', 0)} uncertain match(es). Summary: {results.get('scan_summary', '')}",
+                    content=f"Rare disease scan complete. Evaluated {total_flagged} flagged diseases: {selected_count} selected, {eliminated_count} eliminated. Summary: {results.get('scan_summary', '')}",
                     tool_call_id=runtime.tool_call_id,
                 )
             ],

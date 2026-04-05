@@ -464,16 +464,47 @@ class RareDiseaseScanner:
         matches = self._retrieve_diseases(query_for_retrieval)
 
         results = []
+        all_flagged_diseases = []
+
         for match in matches:
             disease_name = match["disease"]
             umls_cui = match["umls"]
-            mondo_id = self._get_mondo_id(umls_cui)
+            confidence = round(match["score"], 3)
 
+            mondo_id = self._get_mondo_id(umls_cui)
             if mondo_id is None:
+                all_flagged_diseases.append(
+                    {
+                        "disease_name": disease_name,
+                        "umls_cui": umls_cui,
+                        "mondo_id": None,
+                        "status": "eliminated",
+                        "elimination_stage": "no_mondo_mapping",
+                        "elimination_reason": "No MONDO ID mapping found for this disease",
+                        "confidence": confidence,
+                        "symptom_overlap_score": 0.0,
+                        "llm_judgment": None,
+                        "llm_reasoning": None,
+                    }
+                )
                 continue
 
             disease_symptoms = self._get_symptoms_for_mondo(mondo_id)
             if not disease_symptoms:
+                all_flagged_diseases.append(
+                    {
+                        "disease_name": disease_name,
+                        "umls_cui": umls_cui,
+                        "mondo_id": mondo_id,
+                        "status": "eliminated",
+                        "elimination_stage": "no_symptoms_in_kg",
+                        "elimination_reason": "No symptoms found in knowledge graph for this disease",
+                        "confidence": confidence,
+                        "symptom_overlap_score": 0.0,
+                        "llm_judgment": None,
+                        "llm_reasoning": None,
+                    }
+                )
                 continue
 
             overlap_score = self._compute_symptom_overlap(
@@ -481,6 +512,20 @@ class RareDiseaseScanner:
             )
 
             if overlap_score == 0:
+                all_flagged_diseases.append(
+                    {
+                        "disease_name": disease_name,
+                        "umls_cui": umls_cui,
+                        "mondo_id": mondo_id,
+                        "status": "eliminated",
+                        "elimination_stage": "no_symptom_overlap",
+                        "elimination_reason": f"No symptom overlap with patient (0% of {len(disease_symptoms)} known symptoms matched)",
+                        "confidence": confidence,
+                        "symptom_overlap_score": round(overlap_score, 3),
+                        "llm_judgment": None,
+                        "llm_reasoning": None,
+                    }
+                )
                 continue
 
             judgment = self._llm_judge(
@@ -492,6 +537,20 @@ class RareDiseaseScanner:
             )
 
             if judgment["judgment"] == "implausible":
+                all_flagged_diseases.append(
+                    {
+                        "disease_name": disease_name,
+                        "umls_cui": umls_cui,
+                        "mondo_id": mondo_id,
+                        "status": "eliminated",
+                        "elimination_stage": "llm_judged_implausible",
+                        "elimination_reason": judgment["reasoning"],
+                        "confidence": confidence,
+                        "symptom_overlap_score": round(overlap_score, 3),
+                        "llm_judgment": judgment["judgment"],
+                        "llm_reasoning": judgment["reasoning"],
+                    }
+                )
                 continue
 
             patient_symptom_set = {s.lower().strip() for s in patient_symptoms}
@@ -525,6 +584,21 @@ class RareDiseaseScanner:
                         :5
                     ],
                     "rag_evidence_snippets": match["evidence_snippets"],
+                }
+            )
+
+            all_flagged_diseases.append(
+                {
+                    "disease_name": disease_name,
+                    "umls_cui": umls_cui,
+                    "mondo_id": mondo_id,
+                    "status": "selected",
+                    "elimination_stage": None,
+                    "elimination_reason": None,
+                    "confidence": confidence,
+                    "symptom_overlap_score": round(overlap_score, 3),
+                    "llm_judgment": judgment["judgment"],
+                    "llm_reasoning": judgment["reasoning"],
                 }
             )
 
@@ -570,6 +644,7 @@ class RareDiseaseScanner:
 
         return {
             "rare_disease_matches": results,
+            "all_flagged_diseases": all_flagged_diseases,
             "scan_summary": scan_summary,
             "recommendation": " ".join(recommendations)
             if recommendations
